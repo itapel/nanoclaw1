@@ -183,6 +183,12 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     // channels we merely sit in stays silent — no row, no DB writes.
     if (!isMention) return;
     const mgId = `mg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // WhatsApp adapters bind to a personal account, so every new contact
+    // who DMs the user gets auto-created and would otherwise spawn a
+    // channel-approval card. Default-deny these; deliberate wirings still
+    // work because agentCount > 0 short-circuits the denied check below.
+    const autoDeny = event.channelType === 'whatsapp';
+    const now = new Date().toISOString();
     mg = {
       id: mgId,
       channel_type: event.channelType,
@@ -190,8 +196,8 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
       name: null,
       is_group: event.message.isGroup ? 1 : 0,
       unknown_sender_policy: 'request_approval',
-      denied_at: null,
-      created_at: new Date().toISOString(),
+      denied_at: autoDeny ? now : null,
+      created_at: now,
     };
     createMessagingGroup(mg);
     log.info('Auto-created messaging group', {
